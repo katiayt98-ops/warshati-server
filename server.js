@@ -5,31 +5,63 @@ const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 const SYSTEM = [
-  "You are an expert web developer. The user describes an app or website, possibly in Arabic.",
-  "Return ONE complete, self-contained HTML file (inline CSS and JS, no external files, no build step).",
-  "Make it responsive, modern, and mobile-first. Use RTL and Arabic UI text if the user wrote in Arabic.",
-  "Store data in memory only (never localStorage). Do not call external APIs.",
-  "If the user supplies previous HTML, modify it according to the new request and return the full updated file.",
-  "Output ONLY the HTML code, with no explanation and no markdown fences."
+  "You are a senior product engineer and designer. The user describes an app in any language.",
+  "Return ONE complete, self-contained HTML file: inline CSS and JS, no external files, no CDN, no build step.",
+  "Design quality matters: a clear visual hierarchy, generous spacing, a restrained palette, system fonts, visible focus states, mobile-first and responsive.",
+  "Make every control actually work. Keep state in memory only (never localStorage). Do not call external APIs.",
+  "Write interface text in the same language as the user's request. Use dir=rtl for Arabic or Hebrew.",
+  "If previous HTML is supplied, apply the requested change to it and return the full updated file.",
+  "Output ONLY the HTML, with no explanation and no markdown fences."
 ].join("\n");
 
-const PAGE = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">' +
-'<meta name="viewport" content="width=device-width,initial-scale=1"><title>ورشتي</title>' +
-'<style>body{margin:0;font-family:system-ui,sans-serif;background:#111;color:#eee}' +
-'.w{max-width:900px;margin:auto;padding:16px}textarea{width:100%;box-sizing:border-box;min-height:100px;' +
-'border-radius:12px;border:1px solid #333;background:#1c1c1c;color:#eee;padding:12px;font-size:16px}' +
-'button{margin:8px 4px 0 0;padding:12px 20px;border:0;border-radius:12px;background:#3b82f6;color:#fff;font-size:16px}' +
-'button:disabled{opacity:.5}iframe{width:100%;height:70vh;border:1px solid #333;border-radius:12px;background:#fff;margin-top:12px}' +
-'#st{margin-top:8px;color:#9ca3af}</style></head><body><div class="w"><h2>ورشتي</h2>' +
-'<textarea id="p" placeholder="وصف التطبيق اللي بدك إياه..."></textarea>' +
-'<button id="b" onclick="go()">ولّد</button><button onclick="cp()">نسخ الكود</button>' +
-'<div id="st"></div><iframe id="f" sandbox="allow-scripts"></iframe></div>' +
-'<script>var cur="";var st=document.getElementById("st");var b=document.getElementById("b");' +
-'async function go(){var p=document.getElementById("p").value.trim();if(!p)return;b.disabled=true;st.textContent="جاري التوليد...";' +
-'try{var r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:p,previousHtml:cur})});' +
-'var d=await r.json();if(!r.ok)throw new Error(d.error||"خطأ");cur=d.html;document.getElementById("f").srcdoc=cur;st.textContent="تم. اكتب تعديل وولّد من جديد لتحسينه."}' +
-'catch(e){st.textContent="خطأ: "+e.message}b.disabled=false}' +
-'function cp(){if(cur&&navigator.clipboard){navigator.clipboard.writeText(cur);st.textContent="انسخ الكود"}}</script></body></html>';
+const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Forge</title>
+<style>
+:root{--bg:#eef1f4;--ink:#101828;--mute:#505a6b;--rule:#d3d9e1;--acc:#3d3bf3;--panel:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1322;--ink:#e9edf6;--mute:#9aa5ba;--rule:#222c44;--acc:#8c8bff;--panel:#141c31}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+.w{max-width:960px;margin:0 auto;padding:20px 18px 40px}
+h1{font-size:30px;margin:6px 0 2px;letter-spacing:-.02em}.sub{color:var(--mute);margin:0 0 18px}
+textarea{width:100%;min-height:104px;padding:14px;border-radius:14px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);font:inherit;resize:vertical}
+textarea:focus,button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.chip{border:1px solid var(--rule);background:transparent;color:var(--ink);padding:7px 12px;border-radius:99px;font:inherit;font-size:14px;cursor:pointer}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.btn{border:0;border-radius:12px;padding:13px 22px;font:inherit;font-weight:600;cursor:pointer;background:var(--acc);color:#fff}
+.dark .btn{color:#0d1322}
+.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
+button:disabled{opacity:.5;cursor:wait}
+#st{min-height:24px;margin-top:12px;color:var(--mute);font-size:15px}
+iframe{width:100%;height:68vh;border:1px solid var(--rule);border-radius:14px;background:#fff;margin-top:12px}
+</style></head><body><div class="w">
+<h1>Forge</h1><p class="sub">Describe an app. Preview it. Refine it. Take the code.</p>
+<textarea id="p" placeholder="Describe the app you want, in any language."></textarea>
+<div class="chips" id="chips"></div>
+<div class="row"><button class="btn" id="go">Generate</button>
+<button class="btn ghost" id="cp">Copy code</button><button class="btn ghost" id="dl">Download</button><button class="btn ghost" id="rs">New app</button></div>
+<div id="st" role="status"></div><iframe id="f" title="Preview" sandbox="allow-scripts"></iframe></div>
+<script>
+var cur="",busy=false;
+var $=function(i){return document.getElementById(i)};
+var ex=["A task list for my launch week","A tip calculator for a restaurant bill","A landing page for a coffee shop","A habit tracker with streaks"];
+ex.forEach(function(t){var b=document.createElement("button");b.className="chip";b.textContent=t;b.onclick=function(){$("p").value=t;$("p").focus()};$("chips").appendChild(b)});
+function say(m){$("st").textContent=m}
+async function go(){
+  var p=$("p").value.trim();if(!p||busy)return;busy=true;$("go").disabled=true;
+  say(cur?"Applying your change...":"Building your app. This usually takes 10 to 30 seconds.");
+  try{
+    var r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:p,previousHtml:cur})});
+    var d=await r.json();if(!r.ok)throw new Error(d.error||"Something went wrong.");
+    cur=d.html;$("f").srcdoc=cur;$("p").value="";$("p").placeholder="Ask for a change, for example: make the buttons larger.";
+    say("Done. Ask for a change, or copy or download the code.");
+  }catch(e){say("Error: "+e.message)}
+  busy=false;$("go").disabled=false;
+}
+$("go").onclick=go;
+$("cp").onclick=function(){if(!cur)return say("Nothing to copy yet.");navigator.clipboard.writeText(cur).then(function(){say("Code copied.")},function(){say("Copy failed. Use Download instead.")})};
+$("dl").onclick=function(){if(!cur)return say("Nothing to download yet.");var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([cur],{type:"text/html"}));a.download="app.html";a.click();say("Downloaded app.html.")};
+$("rs").onclick=function(){cur="";$("f").srcdoc="";$("p").value="";$("p").placeholder="Describe the app you want, in any language.";say("Ready for a new app.")};
+</script></body></html>`;
 
 const hits = new Map();
 function limited(ip) {
@@ -45,7 +77,7 @@ function readBody(req) {
     let data = "";
     req.on("data", (c) => {
       data += c;
-      if (data.length > 300000) { reject(new Error("too large")); req.destroy(); }
+      if (data.length > 300000) { reject(new Error("Request too large")); req.destroy(); }
     });
     req.on("end", () => resolve(data));
     req.on("error", reject);
@@ -57,44 +89,12 @@ function send(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
-async function generate(prompt, previousHtml) {
-  let text = prompt;
-  if (previousHtml) text = "Current HTML:\n" + previousHtml + "\n\nRequested change:\n" + prompt;
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent";
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": API_KEY },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM }] },
-      contents: [{ role: "user", parts: [{ text }] }]
-    })
-  });
-  const d = await r.json();
-  if (!r.ok) throw new Error((d.error && d.error.message) || "Gemini error");
-  const parts = (d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts) || [];
-  let out = parts.map((p) => p.text || "").join("");
-  out = out.replace(/^```(?:html)?\s*/i, "").replace(/```\s*$/, "").trim();
-  if (!out) throw new Error("Empty response");
-  return out;
-}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-http.createServer(async (req, res) => {
-  try {
-    if (req.method === "GET" && (req.url === "/" || req.url === "/health")) {
-      if (req.url === "/health") return send(res, 200, { ok: true });
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      return res.end(PAGE);
-    }
-    if (req.method === "POST" && req.url === "/api/generate") {
-      if (!API_KEY) return send(res, 500, { error: "GEMINI_API_KEY is not set" });
-      if (limited(req.socket.remoteAddress || "x")) return send(res, 429, { error: "كثرة طلبات، جرّب بعد دقيقة" });
-      const body = JSON.parse((await readBody(req)) || "{}");
-      if (!body.prompt) return send(res, 400, { error: "prompt required" });
-      const html = await generate(String(body.prompt).slice(0, 4000), String(body.previousHtml || "").slice(0, 150000));
-      return send(res, 200, { html });
-    }
-    send(res, 404, { error: "not found" });
-  } catch (e) {
-    send(res, 500, { error: e.message });
-  }
-}).listen(PORT, () => console.log("Warshati server on " + PORT));
+async function callGemini(body) {
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": API_KEY },
+      bod
