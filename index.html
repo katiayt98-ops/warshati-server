@@ -1,47 +1,43 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Forge</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Ayo</title>
 <style>
 :root{--bg:#eef1f4;--ink:#101828;--mute:#505a6b;--rule:#d3d9e1;--acc:#3d3bf3;--panel:#fff}
 @media (prefers-color-scheme:dark){:root{--bg:#0d1322;--ink:#e9edf6;--mute:#9aa5ba;--rule:#222c44;--acc:#8c8bff;--panel:#141c31}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
-.w{max-width:960px;margin:0 auto;padding:20px 18px 40px}
-h1{font-size:30px;margin:6px 0 2px;letter-spacing:-.02em}.sub{color:var(--mute);margin:0 0 18px}
-textarea{width:100%;min-height:104px;padding:14px;border-radius:14px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);font:inherit;resize:vertical}
-textarea:focus,button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
-.chip{border:1px solid var(--rule);background:transparent;color:var(--ink);padding:7px 12px;border-radius:99px;font:inherit;font-size:14px;cursor:pointer}
-.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.w{max-width:960px;margin:0 auto;padding:20px 18px 40px}h1{font-size:30px;margin:6px 0 2px}.sub{color:var(--mute);margin:0 0 16px}
+label{display:block;font-size:14px;color:var(--mute);margin:12px 0 4px}
+input,select,textarea{width:100%;padding:12px;border-radius:12px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);font:inherit}
+textarea{min-height:96px}.g{display:grid;gap:0 12px}@media(min-width:700px){.g{grid-template-columns:1fr 1fr}}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
 .btn{border:0;border-radius:12px;padding:13px 22px;font:inherit;font-weight:600;cursor:pointer;background:var(--acc);color:#fff}
-.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
-button:disabled{opacity:.5;cursor:wait}
-#st{min-height:24px;margin-top:12px;color:var(--mute);font-size:15px}
-iframe{width:100%;height:68vh;border:1px solid var(--rule);border-radius:14px;background:#fff;margin-top:12px}
+.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}button:disabled{opacity:.5;cursor:wait}
+#st{min-height:24px;margin-top:12px;color:var(--mute)}iframe{width:100%;height:70vh;border:1px solid var(--rule);border-radius:14px;background:#fff;margin-top:12px}
+#chg{display:none}
 </style></head><body><div class="w">
-<h1>Forge</h1><p class="sub">Describe an app. Preview it. Refine it. Take the code.</p>
-<textarea id="p" placeholder="Describe the app you want, in any language."></textarea>
-<div class="chips" id="chips"></div>
-<div class="row"><button class="btn" id="go">Generate</button>
-<button class="btn ghost" id="cp">Copy code</button><button class="btn ghost" id="dl">Download</button><button class="btn ghost" id="rs">New app</button></div>
+<h1>Ayo</h1><p class="sub">A website for your cafe or restaurant, built in about a minute.</p>
+<div class="g">
+<div><label>Business name</label><input id="n" placeholder="Blue Door Coffee"></div>
+<div><label>Type</label><select id="t"><option>cafe</option><option>restaurant</option><option>bakery</option></select></div>
+<div><label>City</label><input id="c" placeholder="Haifa"></div>
+<div><label>Opening hours</label><input id="h" placeholder="Daily 8:00 to 22:00"></div>
+<div><label>WhatsApp number (with country code)</label><input id="w" inputmode="tel" placeholder="972501234567"></div>
+<div><label>Website language</label><select id="l"><option>English</option><option>Arabic</option><option>Hebrew</option></select></div>
+</div>
+<label>Menu: one item per line, like "Latte - 14"</label><textarea id="m" placeholder="Espresso - 9&#10;Latte - 14&#10;Croissant - 12"></textarea>
+<div class="row"><button class="btn" id="go">Create my website</button><button class="btn ghost" id="cp">Copy code</button><button class="btn ghost" id="dl">Download</button></div>
+<div id="chg"><label>Want a change? Describe it</label><input id="r" placeholder="Make the colors warmer"><div class="row"><button class="btn ghost" id="ap">Apply change</button></div></div>
 <div id="st" role="status"></div><iframe id="f" title="Preview" sandbox="allow-scripts"></iframe></div>
 <script>
-var cur="",busy=false;
-var $=function(i){return document.getElementById(i)};
-var ex=["A task list for my launch week","A tip calculator for a restaurant bill","A landing page for a coffee shop","A habit tracker with streaks"];
-ex.forEach(function(t){var b=document.createElement("button");b.className="chip";b.textContent=t;b.onclick=function(){$("p").value=t;$("p").focus()};$("chips").appendChild(b)});
+var cur="",busy=false,$=function(i){return document.getElementById(i)};
 function say(m){$("st").textContent=m}
-async function go(){
-  var p=$("p").value.trim();if(!p||busy)return;busy=true;$("go").disabled=true;
-  say(cur?"Applying your change...":"Building your app. This usually takes 10 to 30 seconds.");
-  try{
-    var r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:p,previousHtml:cur})});
-    var d=await r.json();if(!r.ok)throw new Error(d.error||"Something went wrong.");
-    cur=d.html;$("f").srcdoc=cur;$("p").value="";$("p").placeholder="Ask for a change, for example: make the buttons larger.";
-    say("Done. Ask for a change, or copy or download the code.");
-  }catch(e){say("Error: "+e.message)}
-  busy=false;$("go").disabled=false;
-}
-$("go").onclick=go;
-$("cp").onclick=function(){if(!cur)return say("Nothing to copy yet.");navigator.clipboard.writeText(cur).then(function(){say("Code copied.")},function(){say("Copy failed. Use Download instead.")})};
-$("dl").onclick=function(){if(!cur)return say("Nothing to download yet.");var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([cur],{type:"text/html"}));a.download="app.html";a.click();say("Downloaded app.html.")};
-$("rs").onclick=function(){cur="";$("f").srcdoc="";$("p").value="";$("p").placeholder="Describe the app you want, in any language.";say("Ready for a new app.")};
+function brief(){var v=function(i){return $(i).value.trim()};
+ return "Create a polished one-page website for a "+$("t").value+" called '"+v("n")+"' in "+v("c")+". Opening hours: "+v("h")+". Menu (item - price):\n"+v("m")+"\nWrite all text in "+$("l").value+". Sections: hero with the name and a short tagline, menu with prices, opening hours, location, and a prominent WhatsApp button linking to https://wa.me/"+v("w").replace(/\D/g,"")+". Use a warm, appetizing palette, CSS-only decorative shapes, no external images, mobile-first."}
+async function run(p){if(busy)return;busy=true;$("go").disabled=true;$("ap").disabled=true;say("Building. This usually takes 10 to 30 seconds.");
+ try{var r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:p,previousHtml:cur})});
+ var d=await r.json();if(!r.ok)throw new Error(d.error||"Something went wrong.");cur=d.html;$("f").srcdoc=cur;$("chg").style.display="block";say("Done. You can ask for a change below, or copy or download the code.")}
+ catch(e){say("Error: "+e.message)}busy=false;$("go").disabled=false;$("ap").disabled=false}
+$("go").onclick=function(){if(!$("n").value.trim())return say("Please enter the business name.");cur="";run(brief())};
+$("ap").onclick=function(){var x=$("r").value.trim();if(x&&cur){run(x);$("r").value=""}};
+$("cp").onclick=function(){if(!cur)return say("Nothing to copy yet.");navigator.clipboard.writeText(cur).then(function(){say("Code copied.")},function(){say("Copy failed. Use Download.")})};
+$("dl").onclick=function(){if(!cur)return say("Nothing to download yet.");var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([cur],{type:"text/html"}));a.download="website.html";a.click()};
 </script></body></html>
